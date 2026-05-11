@@ -24,8 +24,10 @@ def print_user_prompt() -> None:
 
 
 def print_assistant_text(text: str) -> None:
-    sys.stdout.write(text)
-    sys.stdout.flush()
+    sys.stdout.write(text) # 将字符串写入到标准输出流（通常就是你的终端/控制台）。与 print() 的区别：print(text) 默认会在末尾自动加上一个换行符 \n。sys.stdout.write(text) 不会自动换行。
+    sys.stdout.flush() # 作用：强制将缓冲区（Buffer）的内容立即刷向屏幕。操作系统通常不会每收到一个字符就去操作显示器（因为太慢了）。它会先开辟一块内存（缓冲区），等攒够了一定数量的字符，或者遇到了换行符 \n，才一次性显示出来。
+    # 如果不加 flush()：当你调用 write("天")、write("气") 时，屏幕可能一直没动静。等了 5 秒钟，缓冲区满了或者程序结束了，屏幕上才“砰”地一下跳出整句话。
+    # 加上 flush() 之后：每写一个字就强迫系统立刻显示。这样用户就能看到 AI 像打字机一样，一个字一个字蹦出来的丝滑效果。
 
 
 def print_tool_call(name: str, inp: dict) -> None:
@@ -125,6 +127,7 @@ def start_spinner(label: str = "Thinking") -> None:
 
 
 def stop_spinner() -> None:
+    # 优雅地关闭正在运行的加载动画（Spinner）并清理终端屏幕。
     global _spinner_thread
     if _spinner_thread is None:
         return

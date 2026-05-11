@@ -12,7 +12,9 @@ from pathlib import Path
 from typing import Any, Callable, Awaitable
 
 import anthropic
-import openai
+# import openai
+from langfuse import observe
+from langfuse.openai import openai # OpenAI integration
 
 from minicode.tools import (
     tool_definitions,
@@ -788,6 +790,7 @@ IMPORTANT: When your plan is complete, you MUST call exit_plan_mode. Do NOT ask 
 
     # ─── OpenAI-compatible backend ───────────────────────────────
 
+    @observe()
     async def _chat_openai(self, user_message: str) -> None:
         self._openai_messages.append({"role": "user", "content": user_message})
 
