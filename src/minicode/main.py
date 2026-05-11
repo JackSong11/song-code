@@ -14,7 +14,9 @@ from minicode.ui import print_welcome, print_user_prompt, print_error, print_inf
 from minicode.session import load_session, get_latest_session_id
 from minicode.memory import list_memories
 from minicode.skills import discover_skills, resolve_skill_prompt, get_skill_by_name, execute_skill
+from dotenv import load_dotenv
 
+load_dotenv()
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(

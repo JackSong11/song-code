@@ -3,16 +3,17 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "song-code"
+name = "minicode"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.100.0",
+    "dotenv>=0.9.9",
     "openai>=2.36.0",
     "rich>=15.0.0",
 ]
 
 [project.scripts]
-song-code = "src.main:main"
+minicode = "minicode.main:main"
