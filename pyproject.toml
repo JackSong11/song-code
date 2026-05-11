@@ -1,0 +1,19 @@
+[project]
+name = "song-code"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.100.0",
+    "openai>=2.36.0",
+    "rich>=15.0.0",
+]
+
+[project.scripts]
+song-code = "main:main"
+
+[tool.uv.workspace]
+members = [
+    "song-code",
+]
