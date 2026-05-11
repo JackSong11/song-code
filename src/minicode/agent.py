@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import time
 import uuid
 from pathlib import Path
@@ -15,25 +14,23 @@ from typing import Any, Callable, Awaitable
 import anthropic
 import openai
 
-from src.tools import (
+from minicode.tools import (
     tool_definitions,
     execute_tool,
     check_permission,
     CONCURRENCY_SAFE_TOOLS,
     get_active_tool_definitions,
     ToolDef,
-    PermissionMode,
 )
-from src.memory import (
+from minicode.memory import (
     start_memory_prefetch,
     format_memories_for_injection,
     MemoryPrefetch,
 )
-from src.ui import (
+from minicode.ui import (
     print_assistant_text,
     print_tool_call,
     print_tool_result,
-    print_error,
     print_confirmation,
     print_divider,
     print_cost,
@@ -44,10 +41,10 @@ from src.ui import (
     start_spinner,
     stop_spinner,
 )
-from src.session import save_session
-from src.prompt import build_system_prompt
-from src.subagent import get_sub_agent_config
-from src.mcp_client import McpManager
+from minicode.session import save_session
+from minicode.prompt import build_system_prompt
+from minicode.subagent import get_sub_agent_config
+from minicode.mcp_client import McpManager
 
 
 # ─── Retry with exponential backoff ──────────────────────────

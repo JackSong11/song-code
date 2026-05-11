@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "song-code"
 version = "0.1.0"
@@ -11,9 +15,4 @@ dependencies = [
 ]
 
 [project.scripts]
-song-code = "main:main"
-
-[tool.uv.workspace]
-members = [
-    "song-code",
-]
+song-code = "src.main:main"

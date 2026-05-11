@@ -196,7 +196,7 @@ def _get_tool_summary(name: str, inp: dict) -> str:
     if name == "list_files":
         return inp.get("pattern", "")
     if name == "grep_search":
-        return f'"{inp.get("pattern", "")}" in {inp.get("path", ".")}'
+        return f'"{inp.get("pattern", "")}" in {inp.get("path", "..")}'
     if name == "run_shell":
         cmd = inp.get("command", "")
         return cmd[:60] + "..." if len(cmd) > 60 else cmd

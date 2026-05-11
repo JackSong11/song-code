@@ -8,10 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from src.memory import build_memory_prompt_section
-from src.skills import build_skill_descriptions
-from src.subagent import build_agent_descriptions
-from src.tools import get_deferred_tool_names
+from minicode.memory import build_memory_prompt_section
+from minicode.skills import build_skill_descriptions
+from minicode.subagent import build_agent_descriptions
+from minicode.tools import get_deferred_tool_names
 
 # ─── System prompt template (embedded) ──────────────────────
 

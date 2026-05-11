@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from src.memory import get_memory_dir
+from minicode.memory import get_memory_dir
 
 # ─── Permission modes ──────────────────────────────────────
 
@@ -334,7 +334,7 @@ def _list_files(inp: dict) -> str:
         files = []
         for p in base.glob(pattern):
             if p.is_file():
-                rel = str(p.relative_to(base) if base != Path(".") else p)
+                rel = str(p.relative_to(base) if base != Path("..") else p)
                 # Skip node_modules and .git
                 if "node_modules" in rel or ".git" in rel.split(os.sep):
                     continue
