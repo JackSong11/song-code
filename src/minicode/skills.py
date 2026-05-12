@@ -74,6 +74,7 @@ def _parse_skill_file(
         result = parse_frontmatter(raw)
         meta = result.meta
 
+        # 这里体现了后备机制：优先取元数据里的 name；如果没有，就取所在文件夹的名字；最后实在没有才叫 unknown。
         name = meta.get("name") or file_path.parent.name or "unknown"
         user_invocable = meta.get("user-invocable", "true") != "false"
         context = "fork" if meta.get("context") == "fork" else "inline"
@@ -114,6 +115,13 @@ def get_skill_by_name(name: str) -> SkillDefinition | None:
     return None
 
 
+# skill的模版替换，例如skill的body里面有内容：
+# 请使用位于 ${CLAUDE_SKILL_DIR}/script.py 的脚本处理以下数据：
+# $ARGUMENTS
+#
+# 运行时输入 (args): "1, 2, 3, 4, 5"，就可以替换为：
+# 请使用位于 /home/user/.claude/skills/data_processor/script.py 的脚本处理以下数据：
+# 1, 2, 3, 4, 5
 def resolve_skill_prompt(skill: SkillDefinition, args: str) -> str:
     import re
     prompt = skill.prompt_template

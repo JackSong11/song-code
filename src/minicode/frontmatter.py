@@ -6,12 +6,18 @@ from dataclasses import dataclass, field
 
 # skill markdown举例
 # ---
-# name: image_gen
-# context: inline
-# allowed-tools: dalle3, photoshop
+# name: commit
+# description: Create a git commit with a descriptive message
+# when_to_use: When the user asks to commit changes or says "commit"
+# allowed-tools: run_shell, read_file
+# user-invocable: true
 # ---
+# Look at the current git diff and staged changes. Write a clear, concise
+# commit message following conventional commits format.
 #
-# 你是一个艺术大师，请根据描述生成精美的图片。
+# The user's request: $ARGUMENTS
+#
+# Project skill directory: ${CLAUDE_SKILL_DIR}
 
 @dataclass
 class FrontmatterResult:

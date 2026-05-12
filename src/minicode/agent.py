@@ -142,7 +142,7 @@ def _to_openai_tools(tools: list[ToolDef]) -> list[dict]:
 # ─── Multi-tier compression constants ────────────────────────
 
 SNIPPABLE_TOOLS = {"read_file", "grep_search", "list_files", "run_shell"}
-SNIP_PLACEHOLDER = "[Content snipped - re-read if needed]" # 内容已省略 - 如有需要请重新阅读
+SNIP_PLACEHOLDER = "[Content snipped - re-read if needed]"  # 内容已省略 - 如有需要请重新阅读
 SNIP_THRESHOLD = 0.60
 MICROCOMPACT_IDLE_S = 5 * 60  # 5 minutes
 KEEP_RECENT_RESULTS = 3
@@ -182,9 +182,9 @@ class Agent:
         self.session_id = uuid.uuid4().hex[:8]
         self.session_start_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-        self.total_input_tokens = 0 # 累计所有调用用于费用估算。我们直接用 API 返回值，比 Claude Code 的锚点+估算方案简单，够用。
+        self.total_input_tokens = 0  # 累计所有调用用于费用估算。我们直接用 API 返回值，比 Claude Code 的锚点+估算方案简单，够用。
         self.total_output_tokens = 0
-        self.last_input_token_count = 0 # 用于判断是否接近窗口上限
+        self.last_input_token_count = 0  # 用于判断是否接近窗口上限
         self.current_turns = 0
         self.last_api_call_time = 0.0
 
@@ -465,7 +465,7 @@ class Agent:
             messages=[
                 {"role": "system",
                  "content": "You are a conversation summarizer. Be concise but preserve important details."},
-                *self._openai_messages[1:-1], # # 传入除了 System 和最新提问之外的所有中间对话
+                *self._openai_messages[1:-1],  # # 传入除了 System 和最新提问之外的所有中间对话
                 {"role": "user",
                  "content": "Summarize the conversation so far in a concise paragraph, preserving key decisions, file paths, and context needed to continue the work."},
             ],
@@ -635,7 +635,7 @@ class Agent:
             tools = (
                 [t for t in self.tools if t["name"] in result["allowed_tools"]]
                 if result.get("allowed_tools")
-                else [t for t in self.tools if t["name"] != "agent"]
+                else [t for t in self.tools if t["name"] != "agent"]  # 子agent不让再建子agent了
             )
             print_sub_agent_start("skill-fork", inp.get("skill_name", ""))
             sub_agent = Agent(
@@ -643,7 +643,7 @@ class Agent:
                 api_base=str(self._openai_client.base_url) if self.use_openai and self._openai_client else None,
                 custom_system_prompt=result["prompt"],
                 custom_tools=tools,
-                is_sub_agent=True,
+                is_sub_agent=True,  # 递归标记：防止子代理无限生成子代理，导致死循环或资源耗尽。（为什么这里防止子代理无限生成子代理）
                 permission_mode="plan" if self.permission_mode == "plan" else "bypassPermissions",
             )
             try:
