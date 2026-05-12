@@ -13,7 +13,7 @@ from typing import Any, Callable, Awaitable
 
 import anthropic
 # import openai
-from langfuse import observe
+from langfuse import observe, propagate_attributes
 from langfuse.openai import openai  # OpenAI integration
 
 from minicode.tools import (
@@ -824,148 +824,150 @@ IMPORTANT: When your plan is complete, you MUST call exit_plan_mode. Do NOT ask 
 
     @observe()
     async def _chat_openai(self, user_message: str) -> None:
-        self._openai_messages.append({"role": "user", "content": user_message})
+        # 这里的trace_name设置为数据库的雪花算法的ID，就可以在langfuse平台根据雪花算法id进行搜索
+        with propagate_attributes(trace_name="123456789"):
+            self._openai_messages.append({"role": "user", "content": user_message})
 
-        # Start async memory prefetch (non-blocking, fires once per user turn)
-        memory_prefetch: MemoryPrefetch | None = None
-        if not self.is_sub_agent:
-            sq = self._build_side_query()
-            if sq:
-                memory_prefetch = start_memory_prefetch(
-                    user_message, sq,
-                    self._already_surfaced_memories, self._session_memory_bytes,
-                )
-
-        while True:
-            if self._aborted:
-                break
-
-            self._run_compression_pipeline()
-
-            # Consume memory prefetch if settled (non-blocking poll, zero-wait)
-            if memory_prefetch and memory_prefetch.settled and not memory_prefetch.consumed:
-                memory_prefetch.consumed = True
-                try:
-                    memories = memory_prefetch.task.result()
-                    if memories:
-                        injection_text = format_memories_for_injection(memories)
-                        last = self._openai_messages[-1] if self._openai_messages else None
-                        if last and last.get("role") == "user":
-                            last["content"] = (last.get("content") or "") + "\n\n" + injection_text
-                        else:
-                            self._openai_messages.append({"role": "user", "content": injection_text})
-                        for m in memories:
-                            self._already_surfaced_memories.add(m.path)
-                            self._session_memory_bytes += len(m.content.encode())
-                except Exception:
-                    pass  # prefetch errors already logged
-
+            # Start async memory prefetch (non-blocking, fires once per user turn)
+            memory_prefetch: MemoryPrefetch | None = None
             if not self.is_sub_agent:
-                start_spinner()
+                sq = self._build_side_query()
+                if sq:
+                    memory_prefetch = start_memory_prefetch(
+                        user_message, sq,
+                        self._already_surfaced_memories, self._session_memory_bytes,
+                    )
 
-            response = await self._call_openai_stream()
-
-            if not self.is_sub_agent:
-                stop_spinner()
-
-            self.last_api_call_time = time.time()
-
-            if response.get("usage"):
-                self.total_input_tokens += response["usage"]["prompt_tokens"]
-                self.total_output_tokens += response["usage"]["completion_tokens"]
-                self.last_input_token_count = response["usage"]["prompt_tokens"]
-
-            choice = response.get("choices", [{}])[0] if response.get("choices") else {}
-            message = choice.get("message", {})
-
-            self._openai_messages.append(message)
-
-            tool_calls = message.get("tool_calls")
-            if not tool_calls:
-                if not self.is_sub_agent:
-                    print_cost(self.total_input_tokens, self.total_output_tokens)
-                break
-
-            self.current_turns += 1
-            budget = self._check_budget()
-            if budget["exceeded"]:
-                print_info(f"Budget exceeded: {budget['reason']}")
-                break
-
-            # Phase 1: Parse & permission-check (serial)
-            oai_checked: list[dict] = []
-            for tc in tool_calls:
+            while True:
                 if self._aborted:
                     break
-                if tc.get("type") != "function":
-                    continue
-                fn_name = tc["function"]["name"]
-                try:
-                    inp = json.loads(tc["function"]["arguments"])
-                except Exception:
-                    inp = {}
 
-                print_tool_call(fn_name, inp)
+                self._run_compression_pipeline()
 
-                perm = check_permission(fn_name, inp, self.permission_mode, self._plan_file_path)
-                if perm["action"] == "deny":
-                    print_info(f"Denied: {perm.get('message', '')}")
-                    oai_checked.append({"tc": tc, "fn": fn_name, "inp": inp, "allowed": False,
-                                        "result": f"Action denied: {perm.get('message', '')}"})
-                    continue
-                if perm["action"] == "confirm" and perm.get("message") and perm["message"] not in self._confirmed_paths:
-                    confirmed = await self._confirm_dangerous(perm["message"])
-                    if not confirmed:
-                        oai_checked.append({"tc": tc, "fn": fn_name, "inp": inp, "allowed": False,
-                                            "result": "User denied this action."})
-                        continue
-                    self._confirmed_paths.add(perm["message"])
-                oai_checked.append({"tc": tc, "fn": fn_name, "inp": inp, "allowed": True})
+                # Consume memory prefetch if settled (non-blocking poll, zero-wait)
+                if memory_prefetch and memory_prefetch.settled and not memory_prefetch.consumed:
+                    memory_prefetch.consumed = True
+                    try:
+                        memories = memory_prefetch.task.result()
+                        if memories:
+                            injection_text = format_memories_for_injection(memories)
+                            last = self._openai_messages[-1] if self._openai_messages else None
+                            if last and last.get("role") == "user":
+                                last["content"] = (last.get("content") or "") + "\n\n" + injection_text
+                            else:
+                                self._openai_messages.append({"role": "user", "content": injection_text})
+                            for m in memories:
+                                self._already_surfaced_memories.add(m.path)
+                                self._session_memory_bytes += len(m.content.encode())
+                    except Exception:
+                        pass  # prefetch errors already logged
 
-            # Phase 2: Group & execute (parallel for consecutive safe tools)
-            oai_batches: list[dict] = []
-            for ct in oai_checked:
-                safe = ct["allowed"] and ct["fn"] in CONCURRENCY_SAFE_TOOLS
-                if safe and oai_batches and oai_batches[-1]["concurrent"]:
-                    oai_batches[-1]["items"].append(ct)
-                else:
-                    oai_batches.append({"concurrent": safe, "items": [ct]})
+                if not self.is_sub_agent:
+                    start_spinner()
 
-            oai_context_break = False
-            for batch in oai_batches:
-                if oai_context_break or self._aborted:
+                response = await self._call_openai_stream()
+
+                if not self.is_sub_agent:
+                    stop_spinner()
+
+                self.last_api_call_time = time.time()
+
+                if response.get("usage"):
+                    self.total_input_tokens += response["usage"]["prompt_tokens"]
+                    self.total_output_tokens += response["usage"]["completion_tokens"]
+                    self.last_input_token_count = response["usage"]["prompt_tokens"]
+
+                choice = response.get("choices", [{}])[0] if response.get("choices") else {}
+                message = choice.get("message", {})
+
+                self._openai_messages.append(message)
+
+                tool_calls = message.get("tool_calls")
+                if not tool_calls:
+                    if not self.is_sub_agent:
+                        print_cost(self.total_input_tokens, self.total_output_tokens)
                     break
 
-                if batch["concurrent"]:
-                    async def _run_oai_safe(ct_item: dict) -> tuple[dict, str]:
-                        raw = await self._execute_tool_call(ct_item["fn"], ct_item["inp"])
-                        res = self._persist_large_result(ct_item["fn"], raw)
-                        print_tool_result(ct_item["fn"], res)
-                        return ct_item, res
+                self.current_turns += 1
+                budget = self._check_budget()
+                if budget["exceeded"]:
+                    print_info(f"Budget exceeded: {budget['reason']}")
+                    break
 
-                    results = await asyncio.gather(*[_run_oai_safe(ct) for ct in batch["items"]])
-                    for ct_item, res in results:
-                        self._openai_messages.append(
-                            {"role": "tool", "tool_call_id": ct_item["tc"]["id"], "content": res})
-                else:
-                    for ct in batch["items"]:
-                        if not ct["allowed"]:
-                            self._openai_messages.append(
-                                {"role": "tool", "tool_call_id": ct["tc"]["id"], "content": ct["result"]})
+                # Phase 1: Parse & permission-check (serial)
+                oai_checked: list[dict] = []
+                for tc in tool_calls:
+                    if self._aborted:
+                        break
+                    if tc.get("type") != "function":
+                        continue
+                    fn_name = tc["function"]["name"]
+                    try:
+                        inp = json.loads(tc["function"]["arguments"])
+                    except Exception:
+                        inp = {}
+
+                    print_tool_call(fn_name, inp)
+
+                    perm = check_permission(fn_name, inp, self.permission_mode, self._plan_file_path)
+                    if perm["action"] == "deny":
+                        print_info(f"Denied: {perm.get('message', '')}")
+                        oai_checked.append({"tc": tc, "fn": fn_name, "inp": inp, "allowed": False,
+                                            "result": f"Action denied: {perm.get('message', '')}"})
+                        continue
+                    if perm["action"] == "confirm" and perm.get("message") and perm["message"] not in self._confirmed_paths:
+                        confirmed = await self._confirm_dangerous(perm["message"])
+                        if not confirmed:
+                            oai_checked.append({"tc": tc, "fn": fn_name, "inp": inp, "allowed": False,
+                                                "result": "User denied this action."})
                             continue
-                        raw = await self._execute_tool_call(ct["fn"], ct["inp"])
-                        res = self._persist_large_result(ct["fn"], raw)
-                        print_tool_result(ct["fn"], res)
+                        self._confirmed_paths.add(perm["message"])
+                    oai_checked.append({"tc": tc, "fn": fn_name, "inp": inp, "allowed": True})
 
-                        if self._context_cleared:
-                            self._context_cleared = False
-                            self._openai_messages.append({"role": "user", "content": res})
-                            oai_context_break = True
-                            break
-                        self._openai_messages.append({"role": "tool", "tool_call_id": ct["tc"]["id"], "content": res})
+                # Phase 2: Group & execute (parallel for consecutive safe tools)
+                oai_batches: list[dict] = []
+                for ct in oai_checked:
+                    safe = ct["allowed"] and ct["fn"] in CONCURRENCY_SAFE_TOOLS
+                    if safe and oai_batches and oai_batches[-1]["concurrent"]:
+                        oai_batches[-1]["items"].append(ct)
+                    else:
+                        oai_batches.append({"concurrent": safe, "items": [ct]})
 
-            self._context_cleared = False
-            await self._check_and_compact()
+                oai_context_break = False
+                for batch in oai_batches:
+                    if oai_context_break or self._aborted:
+                        break
+
+                    if batch["concurrent"]:
+                        async def _run_oai_safe(ct_item: dict) -> tuple[dict, str]:
+                            raw = await self._execute_tool_call(ct_item["fn"], ct_item["inp"])
+                            res = self._persist_large_result(ct_item["fn"], raw)
+                            print_tool_result(ct_item["fn"], res)
+                            return ct_item, res
+
+                        results = await asyncio.gather(*[_run_oai_safe(ct) for ct in batch["items"]])
+                        for ct_item, res in results:
+                            self._openai_messages.append(
+                                {"role": "tool", "tool_call_id": ct_item["tc"]["id"], "content": res})
+                    else:
+                        for ct in batch["items"]:
+                            if not ct["allowed"]:
+                                self._openai_messages.append(
+                                    {"role": "tool", "tool_call_id": ct["tc"]["id"], "content": ct["result"]})
+                                continue
+                            raw = await self._execute_tool_call(ct["fn"], ct["inp"])
+                            res = self._persist_large_result(ct["fn"], raw)
+                            print_tool_result(ct["fn"], res)
+
+                            if self._context_cleared:
+                                self._context_cleared = False
+                                self._openai_messages.append({"role": "user", "content": res})
+                                oai_context_break = True
+                                break
+                            self._openai_messages.append({"role": "tool", "tool_call_id": ct["tc"]["id"], "content": res})
+
+                self._context_cleared = False
+                await self._check_and_compact()
 
     async def _call_openai_stream(self) -> dict:
         async def _do():
