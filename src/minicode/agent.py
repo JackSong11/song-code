@@ -14,7 +14,7 @@ from typing import Any, Callable, Awaitable
 import anthropic
 # import openai
 from langfuse import observe
-from langfuse.openai import openai # OpenAI integration
+from langfuse.openai import openai  # OpenAI integration
 
 from minicode.tools import (
     tool_definitions,
@@ -138,10 +138,11 @@ def _to_openai_tools(tools: list[ToolDef]) -> list[dict]:
     ]
 
 
+# ─── 多层压缩常数 ────────────────────────
 # ─── Multi-tier compression constants ────────────────────────
 
 SNIPPABLE_TOOLS = {"read_file", "grep_search", "list_files", "run_shell"}
-SNIP_PLACEHOLDER = "[Content snipped - re-read if needed]"
+SNIP_PLACEHOLDER = "[Content snipped - re-read if needed]" # 内容已省略 - 如有需要请重新阅读
 SNIP_THRESHOLD = 0.60
 MICROCOMPACT_IDLE_S = 5 * 60  # 5 minutes
 KEEP_RECENT_RESULTS = 3
@@ -181,9 +182,9 @@ class Agent:
         self.session_id = uuid.uuid4().hex[:8]
         self.session_start_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-        self.total_input_tokens = 0
+        self.total_input_tokens = 0 # 累计所有调用用于费用估算。我们直接用 API 返回值，比 Claude Code 的锚点+估算方案简单，够用。
         self.total_output_tokens = 0
-        self.last_input_token_count = 0
+        self.last_input_token_count = 0 # 用于判断是否接近窗口上限
         self.current_turns = 0
         self.last_api_call_time = 0.0
 
@@ -464,7 +465,7 @@ class Agent:
             messages=[
                 {"role": "system",
                  "content": "You are a conversation summarizer. Be concise but preserve important details."},
-                *self._openai_messages[1:-1],
+                *self._openai_messages[1:-1], # # 传入除了 System 和最新提问之外的所有中间对话
                 {"role": "user",
                  "content": "Summarize the conversation so far in a concise paragraph, preserving key decisions, file paths, and context needed to continue the work."},
             ],
@@ -480,6 +481,7 @@ class Agent:
             self._openai_messages.append(last_user_msg)
         self.last_input_token_count = 0
 
+    # ─── 多层压缩管道 ──────────────────────
     # ─── Multi-tier compression pipeline ──────────────────────
 
     def _run_compression_pipeline(self) -> None:
@@ -497,6 +499,7 @@ class Agent:
         pass
 
     def _budget_tool_results_openai(self) -> None:
+        # 用于动态压缩（截断）发送给 OpenAI API 的工具返回结果（Tool Results）。其目的是在上下文窗口（Context Window）压力较大时，通过牺牲部分中间细节来节省 Token，防止超出模型限制。
         utilization = self.last_input_token_count / self.effective_window if self.effective_window else 0
         if utilization < 0.5:
             return
@@ -519,7 +522,13 @@ class Agent:
         tool_msgs = []
         for i, msg in enumerate(self._openai_messages):
             if msg.get("role") == "tool" and isinstance(msg.get("content"), str) and msg["content"] != SNIP_PLACEHOLDER:
-                tool_msgs.append(i)
+                # 获取 tool_call_id 来查找工具名称
+                tool_call_id = msg.get("tool_call_id")
+                tool_info = self._find_tool_use_by_id_openai(tool_call_id)
+                # 这里是仿照_snip_stale_results_anthropic增加的
+                # 关键逻辑：只有在 SNIPPABLE_TOOLS 列表中的工具才被加入待清理队列
+                if tool_info and tool_info.get("name") in SNIPPABLE_TOOLS:
+                    tool_msgs.append(i)
         if len(tool_msgs) <= KEEP_RECENT_RESULTS:
             return
         snip_count = len(tool_msgs) - KEEP_RECENT_RESULTS
@@ -549,6 +558,29 @@ class Agent:
             for block in msg["content"]:
                 if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("id") == tool_use_id:
                     return {"name": block["name"], "input": block.get("input", {})}
+        return None
+
+    def _find_tool_use_by_id_openai(self, tool_use_id: str) -> dict | None:
+        # 遍历 OpenAI 消息历史
+        for msg in self._openai_messages:
+            # 工具调用请求永远由 assistant 发出
+            if msg.get("role") != "assistant":
+                continue
+
+            tool_calls = msg.get("tool_calls")
+            if not tool_calls or not isinstance(tool_calls, list):
+                continue
+
+            # 在 tool_calls 列表中寻找匹配的 ID
+            for tool_call in tool_calls:
+                if tool_call.get("id") == tool_use_id:
+                    # 统一返回格式，方便上一层 snip 函数调用
+                    function_info = tool_call.get("function", {})
+                    return {
+                        "name": function_info.get("name"),
+                        "input": function_info.get("arguments")  # 注意：OpenAI 这里通常是 JSON 字符串
+                    }
+
         return None
 
     # ─── Large result persistence ─────────────────────────────────
