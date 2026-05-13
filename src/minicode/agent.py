@@ -196,10 +196,10 @@ class Agent:
         self._confirmed_paths: set[str] = set()
 
         # Plan mode state
-        self._pre_plan_mode: str | None = None
-        self._plan_file_path: str | None = None
+        self._pre_plan_mode: str | None = None  # 进入前的模式
+        self._plan_file_path: str | None = None  # plan 文件路径
         self._plan_approval_fn: Callable[[str], Awaitable[dict]] | None = None
-        self._context_cleared: bool = False  # Set when plan approval clears context
+        self._context_cleared: bool = False  # Set when plan approval clears context # 是否清空了上下文
 
         # Thinking mode
         self._thinking_mode = self._resolve_thinking_mode()

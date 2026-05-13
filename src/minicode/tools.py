@@ -139,15 +139,17 @@ tool_definitions: list[ToolDef] = [
     },
     {
         "name": "enter_plan_mode",
+        # 进入计划模式以切换到只读计划阶段。在计划模式下，您只能读取文件和写入计划文件。
         "description": "Enter plan mode to switch to a read-only planning phase. In plan mode, you can only read files and write to the plan file.",
         "input_schema": {"type": "object", "properties": {}},
-        "deferred": True,
+        "deferred": True,  # 延迟加载
     },
     {
         "name": "exit_plan_mode",
+        # 将计划写入计划文件后，退出计划模式。
         "description": "Exit plan mode after you have finished writing your plan to the plan file.",
         "input_schema": {"type": "object", "properties": {}},
-        "deferred": True,
+        "deferred": True,  # 延迟加载
     },
     {
         "name": "agent",
@@ -682,7 +684,7 @@ async def execute_tool(
                 verb = "writing" if name == "write_file" else "editing"
                 return f"Warning: {inp['file_path']} was modified externally since your last read. Please read_file again before {verb}."
 
-    # tool_search: activate deferred tools and return their schemas
+    # tool_search: activate deferred tools and return their schemas 激活延迟工具并返回其模式
     if name == "tool_search":
         query = (inp.get("query") or "").lower()
         deferred = [t for t in tool_definitions if t.get("deferred")]
