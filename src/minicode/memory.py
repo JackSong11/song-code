@@ -377,3 +377,8 @@ The MEMORY.md index is auto-updated when you write to the memory directory — d
 ## When to Recall
 When the user asks you to remember or recall, or when prior context seems relevant.
 {chr(10) + "## Current Memory Index" + chr(10) + index if index else chr(10) + "(No memories saved yet.)"}"""
+
+# 在 Python 中，chr() 函数将 ASCII 码转换为字符。10 在 ASCII 中代表“换行符” (\n)。
+# 为什么要用 chr(10) 而不直接写 \n？这是一个 Python 的语法限制：在 f-string 的大括号 {} 内部，不允许出现反斜杠 \。
+# ❌ 错误写法：{ "\n" if index else "" } —— 编译器会报错。
+# ✅ 正确写法：{ chr(10) if index else "" } —— 成功绕过限制实现换行。

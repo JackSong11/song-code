@@ -92,12 +92,13 @@ Working directory: {{cwd}}
 Date: {{date}}
 Platform: {{platform}}
 Shell: {{shell}}
-{{git_context}}
 {{claude_md}}
 {{memory}}
 {{skills}}
 {{agents}}
 {{deferred_tools}}"""
+
+# 上面系统提示词中，我把git删了{{git_context}}
 
 import re as _re
 
@@ -212,7 +213,7 @@ def build_system_prompt() -> str:
     today = date.today().isoformat()
     plat = f"{platform.system()} {platform.machine()}"
     shell = (os.environ.get("ComSpec") or "cmd.exe") if sys.platform == "win32" else os.environ.get("SHELL", "/bin/sh")
-    git_context = get_git_context()
+    # git_context = get_git_context()
     claude_md = load_claude_md()
     memory_section = build_memory_prompt_section()
     skills_section = build_skill_descriptions()
@@ -229,7 +230,7 @@ def build_system_prompt() -> str:
         "{{date}}": today,
         "{{platform}}": plat,
         "{{shell}}": shell,
-        "{{git_context}}": git_context,
+        # "{{git_context}}": git_context, # 不理解为什么系统提示词要带这一部分，我给去掉了
         "{{claude_md}}": claude_md,
         "{{memory}}": memory_section,
         "{{skills}}": skills_section,
