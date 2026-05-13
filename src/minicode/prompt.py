@@ -7,6 +7,7 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
+from datetime import date
 
 from minicode.memory import build_memory_prompt_section
 from minicode.skills import build_skill_descriptions
@@ -208,7 +209,6 @@ def get_git_context() -> str:
 
 def build_system_prompt() -> str:
     """Build the full system prompt from embedded template + dynamic context."""
-    from datetime import date
     today = date.today().isoformat()
     plat = f"{platform.system()} {platform.machine()}"
     shell = (os.environ.get("ComSpec") or "cmd.exe") if sys.platform == "win32" else os.environ.get("SHELL", "/bin/sh")

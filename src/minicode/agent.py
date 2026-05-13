@@ -302,6 +302,7 @@ class Agent:
     # ─── Plan mode toggle ────────────────────────────────────
 
     def toggle_plan_mode(self) -> str:
+        # 如果 self.permission_mode == "plan"，说明当前已处于计划模式，现在要还原设置：
         if self.permission_mode == "plan":
             self.permission_mode = self._pre_plan_mode or "default"
             self._pre_plan_mode = None
@@ -964,7 +965,8 @@ IMPORTANT: When your plan is complete, you MUST call exit_plan_mode. Do NOT ask 
                                 self._openai_messages.append({"role": "user", "content": res})
                                 oai_context_break = True
                                 break
-                            self._openai_messages.append({"role": "tool", "tool_call_id": ct["tc"]["id"], "content": res})
+                            self._openai_messages.append(
+                                {"role": "tool", "tool_call_id": ct["tc"]["id"], "content": res})
 
                 self._context_cleared = False
                 await self._check_and_compact()
