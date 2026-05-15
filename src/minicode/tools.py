@@ -610,6 +610,7 @@ def check_permission(
                 return {"action": "allow"}
             return {"action": "deny", "message": f"Blocked in plan mode: {tool_name}"}
         if tool_name == "run_shell":
+            # 对 Shell 命令的完全封禁。在规划模式下，执行命令被认为是极其危险或不符合“规划”初衷的（因为命令可能改变系统状态）。因此，这里采取了一刀切的策略，只要是 run_shell 就直接拒绝。
             return {"action": "deny", "message": "Shell commands blocked in plan mode"}
 
     if tool_name in ("enter_plan_mode", "exit_plan_mode"):

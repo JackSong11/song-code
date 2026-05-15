@@ -708,6 +708,7 @@ IMPORTANT: When your plan is complete, you MUST call exit_plan_mode. Do NOT ask 
                 plan_content = Path(self._plan_file_path).read_text()
 
             # Interactive approval flow
+            # 交互式审批流程
             if self._plan_approval_fn:
                 result = await self._plan_approval_fn(plan_content)
                 choice = result.get("choice", "manual-execute")
